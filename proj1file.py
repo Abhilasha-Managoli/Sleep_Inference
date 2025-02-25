@@ -4,20 +4,11 @@ import seaborn as sns
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# ---------------------------
-# Step 1: Load Chrome and YouTube History
-# ---------------------------
-
-# Load Chrome history (Filtered Jan 23 - Feb 24)
 chrome_file = "Chrome_History_Jan23_Feb24.csv"
 df_chrome = pd.read_csv(chrome_file)
 
 
-# Function to Load YouTube Watch History from HTML
 def load_youtube_history_from_html(filename):
-    """
-    Parse YouTube watch history from an HTML file and extract timestamps.
-    """
     with open(filename, 'r', encoding='utf-8') as f:
         soup = BeautifulSoup(f, 'html.parser')
 
@@ -39,50 +30,30 @@ def load_youtube_history_from_html(filename):
         timestamps.append(timestamp)
 
     df_youtube = pd.DataFrame({"title": titles, "visit_date": timestamps})
-    df_youtube = df_youtube.dropna(subset=["visit_date"])  # Remove missing timestamps
+    df_youtube = df_youtube.dropna(subset=["visit_date"])
     return df_youtube
 
 
-# Load YouTube history from the correct HTML file
 youtube_file = "watch-history.html"
 df_youtube = load_youtube_history_from_html(youtube_file)
 
-# Save YouTube data as CSV for future use
 df_youtube.to_csv("YouTube_History.csv", index=False)
 
-# Convert timestamps to datetime
 df_chrome["visit_date"] = pd.to_datetime(df_chrome["visit_date"])
 df_youtube["visit_date"] = pd.to_datetime(df_youtube["visit_date"])
 
-# Add source columns
 df_chrome["source"] = "Chrome"
 df_youtube["source"] = "YouTube"
 
-# Combine datasets
 df = pd.concat([df_chrome, df_youtube], ignore_index=True)
 df.sort_values(by="visit_date", inplace=True)
 
-# ---------------------------
-# Step 2: Aggregate Activity by Hour
-# ---------------------------
-
-# Extract date and hour from timestamps
 df["date"] = df["visit_date"].dt.date
 df["hour"] = df["visit_date"].dt.hour
 
-# Count activity per hour per day
 activity_by_hour = df.groupby(["date", "hour"]).size().reset_index(name="activity_count")
 
-
-# ---------------------------
-# Step 3: Infer Sleep Periods
-# ---------------------------
-
 def infer_sleep_periods(activity_df, threshold=1):
-    """
-    Infers sleep periods by finding the longest continuous block of hours with
-    low activity (activity_count <= threshold) for each day.
-    """
     sleep_data = []
 
     for date, group in activity_df.groupby("date"):
@@ -92,7 +63,6 @@ def infer_sleep_periods(activity_df, threshold=1):
             count = count_series.iloc[0] if not count_series.empty else 0
             low_activity[hour] = (count <= threshold)
 
-        # Find longest block of low activity (likely sleep)
         max_length = 0
         current_length = 0
         current_start = None
@@ -127,29 +97,10 @@ def infer_sleep_periods(activity_df, threshold=1):
     return pd.DataFrame(sleep_data)
 
 
-# Infer sleep periods
 sleep_df = infer_sleep_periods(activity_by_hour, threshold=1)
 
 
-# ---------------------------
-# Step 4: Compare to Ground Truth (if available)
-# ---------------------------
-
-# If you kept a manual sleep log or used a smartwatch, you can compare actual sleep times.
-# Example structure for ground truth data:
-# ground_truth = pd.read_csv("sleep_log.csv")  # This should contain 'date', 'actual_sleep_start', 'actual_sleep_end'
-# merged_df = sleep_df.merge(ground_truth, on="date", how="left")
-# merged_df["error_hours"] = abs(merged_df["sleep_start"] - merged_df["actual_sleep_start"])
-# print(merged_df)
-
-# ---------------------------
-# Step 5: Visualize Activity Heatmap
-# ---------------------------
-
 def create_heatmap(activity_df):
-    """
-    Creates and displays a heatmap of Google activity by hour.
-    """
     pivot = activity_df.pivot(index="date", columns="hour", values="activity_count").fillna(0)
     plt.figure(figsize=(12, 8))
     sns.heatmap(pivot, cmap="YlGnBu")
@@ -159,12 +110,8 @@ def create_heatmap(activity_df):
     plt.show()
 
 
-# Generate heatmap
 create_heatmap(activity_by_hour)
 
-# ---------------------------
-# Step 6: Save Inferred Sleep Data
-# ---------------------------
 sleep_output_file = "Inferred_Sleep_Data.csv"
 sleep_df.to_csv(sleep_output_file, index=False)
 
